@@ -1,5 +1,5 @@
 - 👋 Hi, I’m Klemens
-- 👀 I’m interested in IT Security, Cloud Computing, Dev Ops, Python, Machine Learning and Data Science
+- 👀 I’m interested in IT Security, Cloud Computing, Dev Ops, Python and Machine Learning
 - 🌱 I’m currently learning NextJS and Java Spring Boot
 - 💞️ I’m looking to collaborate on interesting coding projects and cool open source projects
 - 📫 How to reach me: wisserklemens@gmail.com
