@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+venv/
+
+# dotenv
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache user data (only keep requirements.txt)
+cache/*.txt
+!cache/requirements.txt

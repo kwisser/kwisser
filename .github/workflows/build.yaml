@@ -1,0 +1,39 @@
+name: README build
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 4 * * *"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'cache/requirements.txt'
+      - name: Install dependencies
+        run: python -m pip install -r cache/requirements.txt
+      - name: Update README SVGs
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN || github.token }}
+          USER_NAME: ${{ secrets.USER_NAME || github.repository_owner }}
+        run: python today.py
+      - name: Commit updated SVGs
+        run: |-
+          git add light_mode.svg dark_mode.svg cache/
+          git diff --cached --quiet && echo "No changes to commit" || (
+            git config --global user.email "actions@github.com"
+            git config --global user.name "kwisser/GitHub-Actions-Bot"
+            git commit -m "chore: update README stats [skip ci]"
+            git push
+          )
