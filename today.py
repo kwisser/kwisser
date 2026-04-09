@@ -7,7 +7,6 @@ both SVG template files (light_mode.svg and dark_mode.svg).
 import datetime
 import hashlib
 import os
-import re
 import textwrap
 import time
 from pathlib import Path
@@ -449,7 +448,9 @@ def flush_cache(edges, filename, comment_size):
         handle.writelines(cache_header[:comment_size])
         for edge in edges:
             repository_name = edge["node"]["nameWithOwner"]
-            repository_hash = hashlib.sha256(repository_name.encode("utf-8")).hexdigest()
+            repository_hash = hashlib.sha256(
+                repository_name.encode("utf-8")
+            ).hexdigest()
             handle.write(f"{repository_hash} 0 0 0 0\n")
 
 
@@ -551,7 +552,11 @@ def wrap_profile_value(value, first_width, continuation_width):
 
 def update_wrapped_profile_fields(root):
     """Update wrapped profile values so long text uses dedicated continuation rows."""
-    for field_id, (value, first_width, continuation_width) in WRAPPED_PROFILE_FIELDS.items():
+    for field_id, (
+        value,
+        first_width,
+        continuation_width,
+    ) in WRAPPED_PROFILE_FIELDS.items():
         line_one, line_two = wrap_profile_value(value, first_width, continuation_width)
         find_and_replace(root, f"{field_id}_value_1", line_one)
         find_and_replace(root, f"{field_id}_value_2", line_two)
