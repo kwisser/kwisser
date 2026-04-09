@@ -73,6 +73,7 @@ def configure_environment():
 
 def cache_file_path():
     """Derive the per-user cache filename from the GitHub login."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     hashed_user = hashlib.sha256(USER_NAME.encode("utf-8")).hexdigest()
     return CACHE_DIR / f"{hashed_user}.txt"
 
