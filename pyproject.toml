@@ -1,0 +1,15 @@
+[project]
+name = "kwisser-readme"
+version = "0.1.0"
+description = "GitHub profile README generator for kwisser"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "lxml",
+    "python-dateutil",
+    "python-dotenv",
+    "requests",
+]
+
+[tool.uv]
+package = false

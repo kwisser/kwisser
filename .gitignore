@@ -15,6 +15,5 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Cache user data (only keep requirements.txt)
+# Cache user data
 cache/*.txt
-!cache/requirements.txt
