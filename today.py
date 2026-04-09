@@ -45,7 +45,7 @@ WRAPPED_PROFILE_FIELDS = {
     "interests_ai": ("Coding Agents, Multi-Agent Systems", 20, 34),
     "interests_security": ("IT Security, Offensive Research", 28, 34),
     "interests_cloud": ("Cloud Native Development, ML", 28, 34),
-    "learning": ("Stable Multi-Agent Systems, Prisma", 27, 34),
+    "learning": ("Stable Multi-Agent Systems, Machine Learning, Rust", 27, 34),
     "linkedin": ("in/klemens-wisser-a4618b68", 28, 34),
 }
 
