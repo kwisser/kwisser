@@ -41,8 +41,8 @@ STATS_SECONDARY_COLUMN_WIDTH = 34
 STATS_SECONDARY_SEPARATOR = " |  "
 
 WRAPPED_PROFILE_FIELDS = {
-    "stack_ai": ("LLMs, Multi-Agent Systems, Coding Agents, RAG, Local LLMs", 22, 34),
-    "interests_ai": ("GenAI Integrations, Multi-Agent Systems", 20, 34),
+    "stack_ai": ("LLMs, Multi-Agent Systems, RAG, Local LLMs", 22, 34),
+    "interests_ai": ("Coding Agents, Multi-Agent Systems", 20, 34),
     "interests_security": ("IT Security, Offensive Research", 28, 34),
     "interests_cloud": ("Cloud Native Development, ML", 28, 34),
     "learning": ("Stable Multi-Agent Systems, Prisma", 27, 34),
