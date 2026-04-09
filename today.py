@@ -8,6 +8,7 @@ import datetime
 import hashlib
 import os
 import re
+import textwrap
 import time
 from pathlib import Path
 
@@ -39,6 +40,15 @@ REPO_DATA_WIDTH = 6
 STAR_DATA_WIDTH = 14
 STATS_SECONDARY_COLUMN_WIDTH = 34
 STATS_SECONDARY_SEPARATOR = " |  "
+
+WRAPPED_PROFILE_FIELDS = {
+    "stack_ai": ("LLMs, Multi-Agent Systems, Gemini", 22, 34),
+    "interests_ai": ("GenAI Integrations, Multi-Agent Systems", 20, 34),
+    "interests_security": ("IT Security, Offensive Research", 28, 34),
+    "interests_cloud": ("Cloud Native Development, ML", 28, 34),
+    "learning": ("Stable Multi-Agent Systems, Prisma", 27, 34),
+    "linkedin": ("in/klemens-wisser-a4618b68", 28, 34),
+}
 
 # Simple runtime counters so the script can report how many GraphQL calls each path used.
 QUERY_COUNT = {
@@ -493,6 +503,7 @@ def svg_overwrite(
         "commit_stats_gap",
         secondary_stat_gap(commit_stats_left_width(commit_data)),
     )
+    update_wrapped_profile_fields(root)
     tree.write(filename, encoding="utf-8", xml_declaration=True)
 
 
@@ -510,6 +521,40 @@ def format_display_text(value):
     if isinstance(value, int):
         return f"{value:,}"
     return str(value)
+
+
+def wrap_profile_value(value, first_width, continuation_width):
+    """Wrap one profile field into up to two lines without splitting words."""
+    wrapped_lines = textwrap.wrap(
+        value,
+        width=first_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+
+    if not wrapped_lines:
+        return "", ""
+    if len(wrapped_lines) == 1:
+        return wrapped_lines[0], ""
+
+    first_line = wrapped_lines[0]
+    remainder = " ".join(wrapped_lines[1:])
+    continuation_lines = textwrap.wrap(
+        remainder,
+        width=continuation_width,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    second_line = " ".join(continuation_lines) if continuation_lines else remainder
+    return first_line, second_line
+
+
+def update_wrapped_profile_fields(root):
+    """Update wrapped profile values so long text uses dedicated continuation rows."""
+    for field_id, (value, first_width, continuation_width) in WRAPPED_PROFILE_FIELDS.items():
+        line_one, line_two = wrap_profile_value(value, first_width, continuation_width)
+        find_and_replace(root, f"{field_id}_value_1", line_one)
+        find_and_replace(root, f"{field_id}_value_2", line_two)
 
 
 def build_dot_string(value_text, length):
