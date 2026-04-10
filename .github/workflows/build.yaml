@@ -24,7 +24,7 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN || github.token }}
           USER_NAME: ${{ secrets.USER_NAME || github.repository_owner }}
-        run: uv run --locked today.py
+        run: uv run kwisser
       - name: Commit updated SVGs
         run: |-
           git add light_mode.svg dark_mode.svg cache/
