@@ -37,6 +37,7 @@ LOC_DATA_WIDTH = 25
 FOLLOWER_DATA_WIDTH = 10
 REPO_DATA_WIDTH = 6
 STAR_DATA_WIDTH = 14
+STARRED_DATA_WIDTH = 12
 STATS_SECONDARY_COLUMN_WIDTH = 34
 STATS_SECONDARY_SEPARATOR = " |  "
 
@@ -56,6 +57,7 @@ QUERY_COUNT = {
     "graph_repos_stars": 0,
     "contribution_years_getter": 0,
     "contribution_stats_getter": 0,
+    "starred_getter": 0,
     "recursive_loc": 0,
     "loc_query": 0,
 }
@@ -232,7 +234,7 @@ def contribution_years_getter(username):
 
 
 def contribution_stats_getter(username):
-    """Count lifetime commit contributions and unique non-owned repositories contributed to."""
+    """Count lifetime commit contributions and unique non-owned repositories with visible contributions."""
     years = contribution_years_getter(username)
     total_commits = 0
     contributed_repositories = set()
@@ -244,6 +246,30 @@ def contribution_stats_getter(username):
             contributionsCollection(from: $from, to: $to) {
                 totalCommitContributions
                 commitContributionsByRepository(maxRepositories: 100) {
+                    repository {
+                        nameWithOwner
+                        owner {
+                            login
+                        }
+                    }
+                }
+                issueContributionsByRepository(maxRepositories: 100) {
+                    repository {
+                        nameWithOwner
+                        owner {
+                            login
+                        }
+                    }
+                }
+                pullRequestContributionsByRepository(maxRepositories: 100) {
+                    repository {
+                        nameWithOwner
+                        owner {
+                            login
+                        }
+                    }
+                }
+                pullRequestReviewContributionsByRepository(maxRepositories: 100) {
                     repository {
                         nameWithOwner
                         owner {
@@ -269,11 +295,17 @@ def contribution_stats_getter(username):
         collection = data["user"]["contributionsCollection"]
         total_commits += collection["totalCommitContributions"]
 
-        for repo_entry in collection["commitContributionsByRepository"]:
-            repository = repo_entry["repository"]
-            if repository["owner"]["login"].lower() == username_lower:
-                continue
-            contributed_repositories.add(repository["nameWithOwner"])
+        for collection_name in (
+            "commitContributionsByRepository",
+            "issueContributionsByRepository",
+            "pullRequestContributionsByRepository",
+            "pullRequestReviewContributionsByRepository",
+        ):
+            for repo_entry in collection[collection_name]:
+                repository = repo_entry["repository"]
+                if repository["owner"]["login"].lower() == username_lower:
+                    continue
+                contributed_repositories.add(repository["nameWithOwner"])
 
     return total_commits, len(contributed_repositories)
 
@@ -548,6 +580,7 @@ def svg_overwrite(
     repo_data,
     contrib_data,
     follower_data,
+    starred_data,
     loc_data,
 ):
     """Open one SVG template and replace the dynamic text fields used by the README card."""
@@ -560,6 +593,7 @@ def svg_overwrite(
     justify_format(root, "repo_data", repo_data, REPO_DATA_WIDTH)
     justify_format(root, "contrib_data", contrib_data)
     justify_format(root, "follower_data", follower_data, FOLLOWER_DATA_WIDTH)
+    justify_format(root, "starred_data", starred_data, STARRED_DATA_WIDTH)
     justify_format(root, "loc_data", loc_data[2], LOC_DATA_WIDTH)
     justify_format(root, "loc_add", format_compact_number(loc_data[0]))
     justify_format(root, "loc_del", format_compact_number(loc_data[1]), 5)
@@ -735,6 +769,21 @@ def follower_getter(username):
     return int(data["user"]["followers"]["totalCount"])
 
 
+def starred_getter(username):
+    """Fetch how many repositories the user has starred."""
+    query_count("starred_getter")
+    query = """
+    query($login: String!){
+        user(login: $login) {
+            starredRepositories {
+                totalCount
+            }
+        }
+    }"""
+    data = graphql_request("starred_getter", query, {"login": username})
+    return int(data["user"]["starredRepositories"]["totalCount"])
+
+
 def query_count(function_name):
     """Increment the per-function GraphQL counters."""
     QUERY_COUNT[function_name] += 1
@@ -760,6 +809,7 @@ def update_svg_files(
     repo_data,
     contrib_data,
     follower_data,
+    starred_data,
     loc_data,
 ):
     """Apply the same computed values to both SVG variants used by the README."""
@@ -772,6 +822,7 @@ def update_svg_files(
             repo_data,
             contrib_data,
             follower_data,
+            starred_data,
             loc_data,
         )
 
@@ -813,6 +864,9 @@ def main():
     follower_data, follower_time = perf_counter(follower_getter, USER_NAME)
     print_duration("followers", follower_time)
 
+    starred_data, starred_time = perf_counter(starred_getter, USER_NAME)
+    print_duration("starred", starred_time)
+
     # Format LOC values for display (keep the boolean cache flag untouched in last slot).
     total_loc[:-1] = [f"{value:,}" for value in total_loc[:-1]]
 
@@ -823,6 +877,7 @@ def main():
         repo_data,
         contrib_data,
         follower_data,
+        starred_data,
         total_loc[:-1],
     )
 
@@ -834,6 +889,7 @@ def main():
         + star_time
         + repo_time
         + follower_time
+        + starred_time
     )
     print(f"{'Total function time:':<21} {total_runtime:>11.4f} s")
     print(f"Total GitHub GraphQL API calls: {sum(QUERY_COUNT.values()):>3}")
