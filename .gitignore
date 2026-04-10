@@ -17,3 +17,4 @@ Thumbs.db
 
 # Cache user data
 cache/*.txt
+cache/pycache/

@@ -54,6 +54,8 @@ QUERY_COUNT = {
     "user_getter": 0,
     "follower_getter": 0,
     "graph_repos_stars": 0,
+    "contribution_years_getter": 0,
+    "contribution_stats_getter": 0,
     "recursive_loc": 0,
     "loc_query": 0,
 }
@@ -207,6 +209,73 @@ def graph_repos_stars(count_type, owner_affiliation):
     if count_type == "stars":
         return total_stars
     return 0
+
+
+def format_github_datetime(value):
+    """Format datetimes exactly as GitHub's GraphQL DateTime scalar expects."""
+    return value.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def contribution_years_getter(username):
+    """Fetch the list of years that contain visible GitHub contributions for the user."""
+    query_count("contribution_years_getter")
+    query = """
+    query($login: String!){
+        user(login: $login) {
+            contributionsCollection {
+                contributionYears
+            }
+        }
+    }"""
+    data = graphql_request("contribution_years_getter", query, {"login": username})
+    return data["user"]["contributionsCollection"]["contributionYears"]
+
+
+def contribution_stats_getter(username):
+    """Count lifetime commit contributions and unique non-owned repositories contributed to."""
+    years = contribution_years_getter(username)
+    total_commits = 0
+    contributed_repositories = set()
+    username_lower = username.lower()
+
+    query = """
+    query($login: String!, $from: DateTime!, $to: DateTime!){
+        user(login: $login) {
+            contributionsCollection(from: $from, to: $to) {
+                totalCommitContributions
+                commitContributionsByRepository(maxRepositories: 100) {
+                    repository {
+                        nameWithOwner
+                        owner {
+                            login
+                        }
+                    }
+                }
+            }
+        }
+    }"""
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for year in years:
+        query_count("contribution_stats_getter")
+        year_start = datetime.datetime(year, 1, 1, tzinfo=datetime.timezone.utc)
+        year_end = datetime.datetime(year + 1, 1, 1, tzinfo=datetime.timezone.utc)
+        variables = {
+            "login": username,
+            "from": format_github_datetime(year_start),
+            "to": format_github_datetime(min(year_end, now)),
+        }
+        data = graphql_request("contribution_stats_getter", query, variables)
+        collection = data["user"]["contributionsCollection"]
+        total_commits += collection["totalCommitContributions"]
+
+        for repo_entry in collection["commitContributionsByRepository"]:
+            repository = repo_entry["repository"]
+            if repository["owner"]["login"].lower() == username_lower:
+                continue
+            contributed_repositories.add(repository["nameWithOwner"])
+
+    return total_commits, len(contributed_repositories)
 
 
 def recursive_loc(
@@ -730,21 +799,16 @@ def main():
     )
     print_duration("LOC (cached)" if total_loc[-1] else "LOC (no cache)", loc_time)
 
-    commit_data, commit_time = perf_counter(commit_counter, COMMENT_BLOCK_SIZE)
-    print_duration("commit count", commit_time)
+    (commit_data, contrib_data), contribution_time = perf_counter(
+        contribution_stats_getter, USER_NAME
+    )
+    print_duration("contributions", contribution_time)
 
     star_data, star_time = perf_counter(graph_repos_stars, "stars", ["OWNER"])
     print_duration("stars", star_time)
 
     repo_data, repo_time = perf_counter(graph_repos_stars, "repos", ["OWNER"])
     print_duration("repos", repo_time)
-
-    contrib_data, contrib_time = perf_counter(
-        graph_repos_stars,
-        "repos",
-        ["OWNER", "COLLABORATOR", "ORGANIZATION_MEMBER"],
-    )
-    print_duration("contributed repos", contrib_time)
 
     follower_data, follower_time = perf_counter(follower_getter, USER_NAME)
     print_duration("followers", follower_time)
@@ -766,10 +830,9 @@ def main():
         user_time
         + age_time
         + loc_time
-        + commit_time
+        + contribution_time
         + star_time
         + repo_time
-        + contrib_time
         + follower_time
     )
     print(f"{'Total function time:':<21} {total_runtime:>11.4f} s")
