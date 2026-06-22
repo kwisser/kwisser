@@ -18,3 +18,5 @@ Thumbs.db
 # Cache user data
 cache/*.txt
 cache/pycache/
+# Local Pi runtime state
+.atl/

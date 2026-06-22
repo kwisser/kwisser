@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.11'
+          python-version: "3.11"
           enable-cache: true
       - name: Update README SVGs
         env:
