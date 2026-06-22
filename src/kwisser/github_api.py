@@ -6,12 +6,21 @@ surface them in error messages).
 """
 
 import datetime
-from typing import Any
+import time
+from typing import Any, NoReturn
 
 import requests
 
 from kwisser.config import RuntimeState, Settings
 from kwisser.formatting import format_github_datetime
+
+# GitHub's GraphQL endpoint intermittently rejects requests during a rapid
+# burst (secondary rate limiting / abuse detection), surfacing as a transient
+# 401, 403 or 5xx even when the token is valid.  Retry those with backoff
+# instead of throwing away an entire LOC traversal on a single blip.
+MAX_REQUEST_ATTEMPTS: int = 4
+RETRY_BACKOFF_SECONDS: float = 2.0
+RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({401, 403, 500, 502, 503, 504})
 
 
 def raise_request_error(
@@ -38,43 +47,78 @@ def graphql_request(
     state: RuntimeState,
     partial_cache: tuple[list[str], list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Send one GraphQL request and normalize all failure cases in one place."""
+    """Send one GraphQL request and normalize all failure cases in one place.
+
+    Transient transport failures (network errors and the status codes in
+    ``RETRYABLE_STATUS_CODES``) are retried with exponential backoff before the
+    partial cache is flushed and the error re-raised.
+    """
     from kwisser.loc import force_close_file  # local import to avoid circular deps
 
-    try:
-        response = requests.post(
-            "https://api.github.com/graphql",
-            json={"query": query, "variables": variables},
-            headers=settings.headers,
-            timeout=30,
-        )
-    except requests.RequestException as error:
+    def fail(error: BaseException) -> NoReturn:
+        """Flush any partial cache and re-raise the final, non-recoverable error."""
         if partial_cache is not None:
             force_close_file(*partial_cache, user_name=settings.user_name)
-        raise RuntimeError(f"{operation_name} request failed: {error}") from error
+        raise error
 
-    if response.status_code != 200:
-        if partial_cache is not None:
-            force_close_file(*partial_cache, user_name=settings.user_name)
-        raise_request_error(operation_name, response, state)
+    for attempt in range(1, MAX_REQUEST_ATTEMPTS + 1):
+        last_attempt = attempt == MAX_REQUEST_ATTEMPTS
 
-    try:
-        payload = response.json()
-    except ValueError as error:
-        if partial_cache is not None:
-            force_close_file(*partial_cache, user_name=settings.user_name)
-        raise RuntimeError(
-            f"{operation_name} returned invalid JSON: {response.text}"
-        ) from error
+        try:
+            response = requests.post(
+                "https://api.github.com/graphql",
+                json={"query": query, "variables": variables},
+                headers=settings.headers,
+                timeout=30,
+            )
+        except requests.RequestException as error:
+            if last_attempt:
+                fail(RuntimeError(f"{operation_name} request failed: {error}"))
+            _sleep_before_retry(operation_name, attempt, f"request error: {error}")
+            continue
 
-    if payload.get("errors"):
-        if partial_cache is not None:
-            force_close_file(*partial_cache, user_name=settings.user_name)
-        raise RuntimeError(
-            f"{operation_name} returned GraphQL errors: {payload['errors']}"
-        )
+        if response.status_code in RETRYABLE_STATUS_CODES and not last_attempt:
+            _sleep_before_retry(
+                operation_name, attempt, f"status {response.status_code}"
+            )
+            continue
 
-    return payload["data"]
+        if response.status_code != 200:
+            try:
+                raise_request_error(operation_name, response, state)
+            except RuntimeError as error:
+                fail(error)
+
+        try:
+            payload = response.json()
+        except ValueError as error:
+            fail(
+                RuntimeError(
+                    f"{operation_name} returned invalid JSON: {response.text}"
+                )
+            )
+
+        if payload.get("errors"):
+            fail(
+                RuntimeError(
+                    f"{operation_name} returned GraphQL errors: {payload['errors']}"
+                )
+            )
+
+        return payload["data"]
+
+    # Unreachable: the loop always returns or raises via fail().
+    raise RuntimeError(f"{operation_name} exhausted all retry attempts")
+
+
+def _sleep_before_retry(operation_name: str, attempt: int, reason: str) -> None:
+    """Log and back off exponentially before the next request attempt."""
+    delay = RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+    print(
+        f"{operation_name} attempt {attempt}/{MAX_REQUEST_ATTEMPTS} failed "
+        f"({reason}); retrying in {delay:.1f}s."
+    )
+    time.sleep(delay)
 
 
 def stars_counter(edges: list[dict[str, Any]]) -> int:
