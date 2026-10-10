@@ -9,6 +9,7 @@ that needs them.
 import dataclasses
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ---------------------------------------------------------------------------
@@ -24,6 +25,39 @@ COMMENT_BLOCK_SIZE: int = 7
 CACHE_COMMENT_LINE: str = (
     "This line is a comment block. Write whatever you want here.\n"
 )
+
+
+# ---------------------------------------------------------------------------
+# Profile configuration – customizable card content and tech stack.
+# ---------------------------------------------------------------------------
+
+
+class ProfileConfig(BaseSettings):
+    """Static profile information displayed on the GitHub README card.
+
+    All fields have sensible defaults matching the developer profile and can
+    be customized either directly in this class or overridden via environment
+    variables / .env file.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    os: str = "macOS / Linux / Windows 11"
+    role: str = "Senior Fullstack Data/AI Engineer"
+    location: str = "Berlin, Germany"
+    stack_backend: str = "Python, FastAPI, Terraform, Rust"
+    stack_frontend: str = "React, TypeScript, Next.js"
+    stack_cloud: str = "GCP, Docker, Kubernetes"
+    stack_ai: str = "LLMs, Multi-Agent Systems, RAG, Local LLMs"
+    interests_ai: str = "Coding Agents, Multi-Agent Systems"
+    interests_security: str = "IT Security, Offensive Research"
+    interests_cloud: str = "Cloud Native Development, ML"
+    learning: str = "Stable Multi-Agent Systems, Machine Learning, Rust"
+    linkedin: str = "in/klemens-wisser-a4618b68"
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +84,7 @@ class Settings(BaseSettings):
 
     access_token: str
     user_name: str
+    profile: ProfileConfig = Field(default_factory=ProfileConfig)
 
     @property
     def headers(self) -> dict[str, str]:

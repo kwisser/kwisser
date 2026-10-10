@@ -20,14 +20,29 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
+      # The LOC cache (cache/*.txt) is gitignored, so without this every run
+      # re-traverses the full commit history of every repository (~9 min).
+      - name: Restore LOC cache
+        uses: actions/cache/restore@v6
+        with:
+          path: cache
+          key: loc-cache-${{ github.run_id }}
+          restore-keys: loc-cache-
       - name: Update README SVGs
         env:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN || github.token }}
           USER_NAME: ${{ secrets.USER_NAME || github.repository_owner }}
         run: uv run kwisser
+      # Save even on failure: a failed LOC run flushes its partial progress.
+      - name: Save LOC cache
+        if: always()
+        uses: actions/cache/save@v6
+        with:
+          path: cache
+          key: loc-cache-${{ github.run_id }}
       - name: Commit updated SVGs
         run: |-
-          git add light_mode.svg dark_mode.svg cache/
+          git add light_mode.svg dark_mode.svg
           git diff --cached --quiet && echo "No changes to commit" || (
             git config --global user.email "actions@github.com"
             git config --global user.name "kwisser/GitHub-Actions-Bot"

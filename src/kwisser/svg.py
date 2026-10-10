@@ -9,7 +9,7 @@ from pathlib import Path
 
 from lxml.etree import _Element, _ElementTree, parse
 
-from kwisser.config import SVG_FILES
+from kwisser.config import SVG_FILES, ProfileConfig
 from kwisser.formatting import format_compact_number, format_display_text
 
 # ---------------------------------------------------------------------------
@@ -26,15 +26,33 @@ STARRED_DATA_WIDTH: int = 12
 STATS_SECONDARY_COLUMN_WIDTH: int = 34
 STATS_SECONDARY_SEPARATOR: str = " |  "
 
-# Profile fields that may need to be wrapped across two SVG lines.
-# Each entry: field_id -> (value, first_line_max_width, continuation_max_width)
-WRAPPED_PROFILE_FIELDS: dict[str, tuple[str, int, int]] = {
-    "stack_ai": ("LLMs, Multi-Agent Systems, RAG, Local LLMs", 22, 34),
-    "interests_ai": ("Coding Agents, Multi-Agent Systems", 20, 34),
-    "interests_security": ("IT Security, Offensive Research", 28, 34),
-    "interests_cloud": ("Cloud Native Development, ML", 28, 34),
-    "learning": ("Stable Multi-Agent Systems, Machine Learning, Rust", 27, 34),
-    "linkedin": ("in/klemens-wisser-a4618b68", 28, 34),
+OS_DATA_WIDTH: int = 44
+ROLE_DATA_WIDTH: int = 42
+LOCATION_DATA_WIDTH: int = 41
+STACK_BACKEND_DATA_WIDTH: int = 40
+STACK_FRONTEND_DATA_WIDTH: int = 33
+STACK_CLOUD_DATA_WIDTH: int = 34
+
+# Layout specifications for single-line profile fields:
+# field_name -> (element_id, target_width)
+SINGLE_LINE_PROFILE_FIELDS: dict[str, tuple[str, int]] = {
+    "os": ("os_data", OS_DATA_WIDTH),
+    "role": ("role_data", ROLE_DATA_WIDTH),
+    "location": ("location_data", LOCATION_DATA_WIDTH),
+    "stack_backend": ("stack_backend_data", STACK_BACKEND_DATA_WIDTH),
+    "stack_frontend": ("stack_frontend_data", STACK_FRONTEND_DATA_WIDTH),
+    "stack_cloud": ("stack_cloud_data", STACK_CLOUD_DATA_WIDTH),
+}
+
+# Layout specifications for multi-line wrapped profile fields:
+# field_name -> (svg_id_prefix, first_line_max_width, continuation_max_width)
+WRAPPED_PROFILE_FIELD_SPECS: dict[str, tuple[str, int, int]] = {
+    "stack_ai": ("stack_ai", 22, 34),
+    "interests_ai": ("interests_ai", 20, 34),
+    "interests_security": ("interests_security", 28, 34),
+    "interests_cloud": ("interests_cloud", 28, 34),
+    "learning": ("learning", 27, 34),
+    "linkedin": ("linkedin", 28, 34),
 }
 
 
@@ -133,14 +151,19 @@ def wrap_profile_value(
     return first_line, second_line
 
 
-def update_wrapped_profile_fields(root: _Element) -> None:
-    """Update wrapped profile values so long text uses dedicated continuation rows."""
-    for field_id, (value, first_width, continuation_width) in (
-        WRAPPED_PROFILE_FIELDS.items()
+def update_profile_fields(root: _Element, profile: ProfileConfig) -> None:
+    """Update all static profile and interest fields in the SVG from configuration."""
+    for field_name, (element_id, target_width) in SINGLE_LINE_PROFILE_FIELDS.items():
+        value = getattr(profile, field_name)
+        justify_format(root, element_id, value, target_width)
+
+    for field_name, (svg_id_prefix, first_width, cont_width) in (
+        WRAPPED_PROFILE_FIELD_SPECS.items()
     ):
-        line_one, line_two = wrap_profile_value(value, first_width, continuation_width)
-        find_and_replace(root, f"{field_id}_value_1", line_one)
-        find_and_replace(root, f"{field_id}_value_2", line_two)
+        value = getattr(profile, field_name)
+        line_one, line_two = wrap_profile_value(value, first_width, cont_width)
+        find_and_replace(root, f"{svg_id_prefix}_value_1", line_one)
+        find_and_replace(root, f"{svg_id_prefix}_value_2", line_two)
 
 
 # ---------------------------------------------------------------------------
@@ -158,8 +181,12 @@ def svg_overwrite(
     follower_data: int | str,
     starred_data: int | str,
     loc_data: list[int | str],
+    profile: ProfileConfig | None = None,
 ) -> None:
     """Open one SVG template and replace all dynamic text fields."""
+    if profile is None:
+        profile = ProfileConfig()
+
     tree: _ElementTree = parse(filename)
     root = tree.getroot()
 
@@ -183,7 +210,7 @@ def svg_overwrite(
         "commit_stats_gap",
         secondary_stat_gap(commit_stats_left_width(commit_data)),
     )
-    update_wrapped_profile_fields(root)
+    update_profile_fields(root, profile)
     tree.write(filename, encoding="utf-8", xml_declaration=True)
 
 
@@ -196,6 +223,7 @@ def update_svg_files(
     follower_data: int | str,
     starred_data: int | str,
     loc_data: list[int | str],
+    profile: ProfileConfig | None = None,
 ) -> None:
     """Apply the computed values to both SVG variants used by the README."""
     for svg_file in SVG_FILES:
@@ -209,4 +237,16 @@ def update_svg_files(
             follower_data,
             starred_data,
             loc_data,
+            profile=profile,
         )
+
+
+def update_profile_svgs(profile: ProfileConfig | None = None) -> None:
+    """Update profile and text fields in SVG files without re-fetching GitHub API stats."""
+    if profile is None:
+        profile = ProfileConfig()
+    for svg_file in SVG_FILES:
+        tree: _ElementTree = parse(svg_file)
+        root = tree.getroot()
+        update_profile_fields(root, profile)
+        tree.write(svg_file, encoding="utf-8", xml_declaration=True)

@@ -6,7 +6,14 @@ or:
     python -m kwisser
 """
 
-from kwisser.config import COMMENT_BLOCK_SIZE, RuntimeState, Settings
+import sys
+
+from kwisser.config import (
+    COMMENT_BLOCK_SIZE,
+    ProfileConfig,
+    RuntimeState,
+    Settings,
+)
 from kwisser.formatting import format_age, perf_counter, print_duration
 from kwisser.github_api import (
     contribution_stats_getter,
@@ -16,11 +23,16 @@ from kwisser.github_api import (
     user_getter,
 )
 from kwisser.loc import loc_query
-from kwisser.svg import update_svg_files
+from kwisser.svg import update_profile_svgs, update_svg_files
 
 
 def main() -> None:
     """Main pipeline: load credentials, fetch GitHub stats, update SVG files."""
+    if "--profile-only" in sys.argv:
+        update_profile_svgs(ProfileConfig())
+        print("Updated profile fields in SVG files.")
+        return
+
     settings = Settings()
     state = RuntimeState()
 
@@ -82,6 +94,7 @@ def main() -> None:
         follower_data,
         starred_data,
         total_loc[:-1],
+        profile=settings.profile,
     )
 
     total_runtime = (

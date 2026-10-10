@@ -20,3 +20,8 @@ cache/*.txt
 cache/pycache/
 # Local Pi runtime state
 .atl/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
